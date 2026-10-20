@@ -28,7 +28,8 @@ python -m compileall -q src mcp_servers scripts tests
 6. **Do not run destructive prompts or writes against a live lab.** Use `ASSISTANT_DRYRUN=1`. Real writes only on a disposable object whose state you verify through a different API, with cleanup verified.
 7. **Do not start a second Telegram poller with a live bot token** (it steals updates from the running service). Test the service with Telegram disabled and the API on a test port.
 8. **Do not push, tag, force-push or rewrite published history** unless the owner asks.
-9. **Git commits:** use the identity configured in the repository; add **no** AI attribution of any kind (no trailers, session links or tool footers) to commit messages, pull requests or files. Short imperative subject, body explaining why.
+9. **Stay offline-first.** The only external address in the code is the optional Telegram API. Do not add telemetry, update checks, cloud model calls or any other outbound endpoint; a new network egress must be opt-in, off by default, and documented in `docs/OFFLINE.md`. The service must keep working with Telegram removed.
+10. **Git commits:** use the identity configured in the repository; add **no** AI attribution of any kind (no trailers, session links or tool footers) to commit messages, pull requests or files. Short imperative subject, body explaining why.
 
 ## Code conventions
 

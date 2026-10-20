@@ -4,12 +4,15 @@
 
 ### A homelab assistant that runs on a **4B model, on CPU, with no GPU**, and that you can actually trust near your Proxmox.
 
-Ask it about your lab in Telegram. It makes **one reversible change per request**, tells you about problems before you open a dashboard, and **physically cannot delete a guest, touch a backup, or run a raw Zabbix write**, because those rules live in code, not in a prompt.
+**100% local AI: the model, the tools and your data stay on your network.** The only online piece is an optional Telegram bridge, and you can leave it out.
+
+Ask it about your lab in Telegram (or over a LAN-only HTTP API). It makes **one reversible change per request**, tells you about problems before you open a dashboard, and **physically cannot delete a guest, touch a backup, or run a raw Zabbix write**, because those rules live in code, not in a prompt.
 
 [![CI](https://github.com/levi2m/pve-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/levi2m/pve-assistant/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Model](https://img.shields.io/badge/model-4B%20on%20CPU-green)
+![Cloud AI](https://img.shields.io/badge/cloud%20AI-none-brightgreen)
 ![MCP](https://img.shields.io/badge/MCP-Proxmox%20%C2%B7%20Zabbix%20%C2%B7%20Docker%20%C2%B7%20Ollama%20%C2%B7%20OpenWrt-orange)
 
 </div>
@@ -21,6 +24,21 @@ Ask it about your lab in Telegram. It makes **one reversible change per request*
 Everyone's first homelab-AI demo gives a big model a pile of tools and hopes. That doesn't survive contact with a small local model: hundreds of tool schemas don't fit in its context, it fills optional arguments wrongly, it cannot count, and in testing **every small model I tried obeyed "stop every container"**. So this project flips the design: **the model is treated as an untrusted, helpful component**. Code decides which 6–8 tools it sees, hides the arguments it gets wrong, computes every count and severity itself, verifies every change by reading it back, and refuses the dangerous operations no matter what the model says.
 
 The result is an assistant that is boring to trust, fast enough to use (13–60 s per answer on CPU), and small enough to read in an afternoon.
+
+## Offline by design
+
+Nothing about your infrastructure goes to an AI provider, because there isn't one. Your Proxmox, Zabbix, Docker and router data is read by local tool servers and handed to a model that runs on your own CPU through Ollama. No account, no API key, no telemetry.
+
+| | |
+|---|---|
+| **Model** | local, via Ollama. No cloud LLM, ever |
+| **Tool servers** | local processes; each talks only to the system it controls |
+| **State** | SQLite and JSON files in one directory on your host |
+| **External addresses in the code** | exactly one: the Telegram API, and only if you enable the bridge |
+| **Telegram** | optional. Leave `telegram.env` out and the service runs with no outbound connection at all |
+| **Air-gapped** | after the one-time downloads (model, build), block the host's egress; nothing needs it |
+
+The honest caveat: if you do enable Telegram, your messages, the answers and the alert text pass through Telegram's servers. Without it you still get the HTTP API, the safety rules, the undo timers and the nightly review; you lose proactive alerts (keep using Zabbix's own notifications for those). Details, what stays and what goes, and how to verify it yourself: [docs/OFFLINE.md](docs/OFFLINE.md).
 
 ## What it looks like
 
@@ -95,7 +113,9 @@ The run-to-run difference of one case is noise; see [docs/EVALUATION.md](docs/EV
 
 **7. Memory holds facts, never instructions.** Notes you approve go into the prompt; anything that reads like an instruction is refused, even from you. The assistant cannot change its own rules, deny list or code.
 
-**8. A safety net outside itself.** If the assistant is down, or a High problem sits unacknowledged, **Zabbix** messages you directly.
+**8. Local first.** No cloud AI, no telemetry, one optional online bridge you can strip ([docs/OFFLINE.md](docs/OFFLINE.md)).
+
+**9. A safety net outside itself.** If the assistant is down, or a High problem sits unacknowledged, **Zabbix** messages you directly.
 
 ## Safety at a glance
 
@@ -166,6 +186,7 @@ The full write-up is [docs/LESSONS.md](docs/LESSONS.md). A few that surprised me
 - Developed and evaluated on **one real lab**. The generic, configurable version in this repository was re-tested against that lab and offline, but not yet on a second, different lab. Expect to tune `[hints]` for your guest names.
 - Proxmox writes (start/stop/reboot) go through the same verified path as the rest, but the evaluation does not yet include a disposable-guest end-to-end test.
 - Known gaps are tracked in [AGENTS.md](AGENTS.md#known-gaps-good-places-to-contribute): delete-mode offers delete tools of every matching server, Zabbix "snooze" needs an upstream parameter, the alert Details button has no automated test.
+- The Telegram-less mode is tested on a real lab for the API, status, memory and the daily review; the local undo-timer loop it relies on is unit-tested but not yet run end to end on a live lab.
 - It is slow by design (small model, CPU). If you want sub-second answers, this is the wrong tool.
 
 ## Repository map
@@ -178,7 +199,7 @@ The full write-up is [docs/LESSONS.md](docs/LESSONS.md). A few that surprised me
 | `scripts/` | Zabbix role / health item / safety net, disposable Zabbix fixture, third-party build, router login, repository scanner |
 | `deploy/` | example config, env templates (no values), systemd unit |
 | `tests/` | offline tests: gate, alert engine, compaction, redaction, memory, timers, config |
-| `docs/` | architecture, setup, safety, lessons, evaluation, operations, secrets rotation |
+| `docs/` | architecture, setup, safety, offline mode, lessons, evaluation, operations, secrets rotation |
 | `AGENTS.md` | rules and commands for AI coding agents working on the repository |
 
 ## Contributing
