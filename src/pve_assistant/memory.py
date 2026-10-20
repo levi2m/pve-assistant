@@ -33,6 +33,30 @@ class Memory:
         self.db.commit()
         return cur.rowcount == 1
 
+    def approve(self, mid):
+        """Approve one proposed note. 'ok', 'missing' or 'refused' (it reads like an instruction: memory holds facts, never instructions)."""
+        row = self.db.execute("select text from memory where id=?", (mid,)).fetchone()
+        if not row:
+            return "missing"
+        if _SUSPICIOUS.search(row[0]):
+            return "refused"
+        self.set_status(mid, "approved")
+        return "ok"
+
+    def approve_all(self):
+        """Approve every proposed note that passes the same filter as add(). Returns (approved ids, ids skipped as instruction-like)."""
+        approved, skipped = [], []
+        for mid, _kind, text, _src, _st in self.list("proposed"):
+            (skipped if _SUSPICIOUS.search(text) else approved).append(mid)
+        for mid in approved:
+            self.set_status(mid, "approved")
+        return approved, skipped
+
+    def prompt_fit(self):
+        """(notes that fit in the prompt, notes approved). Only the newest PROMPT_NOTES within PROMPT_CHARS reach the model."""
+        block = self.prompt_block()
+        return (block.count("\n- ") if block else 0), len(self.list("approved"))
+
     def list(self, status=None):
         q, a = "select id,kind,text,source,status from memory", ()
         if status:

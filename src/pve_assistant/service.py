@@ -109,7 +109,7 @@ class Service:
             return ("I answer questions about the lab and can make one change per request.\n"
                     "/status  health of the assistant\n/clear  forget this conversation\n"
                     "/remember <fact>  teach me a fact about the lab\n/memory  what I remember and what waits for approval\n"
-                    "/approve N, /reject N, /forget N  manage memory\n/digest  last daily review\n/review  run the daily review now\n/alerts  open alerts   /fixes <text>  past fixes   /mute <hours>, /unmute")
+                    "/approve N|all, /reject N, /forget N  manage memory\n/digest  last daily review\n/review  run the daily review now\n/alerts  open alerts   /fixes <text>  past fixes   /mute <hours>, /unmute")
         if cmd == "/status":
             return self.status_text()
         if cmd == "/clear":
@@ -127,11 +127,27 @@ class Service:
             if not live:
                 return "My memory is empty. Teach me with /remember <fact>."
             return "\n".join(f"#{i} [{st}] {t[:140]}" for i, _k, t, _s, st in live[-20:])
+        if cmd == "/approve" and arg.lower() == "all":
+            approved, skipped = mem.approve_all()
+            if not approved and not skipped:
+                return "Nothing is waiting for approval."
+            out = [f"Approved {len(approved)} note(s): " + ", ".join(f"#{i}" for i in approved) + "." if approved else "Approved nothing."]
+            if skipped:
+                out.append("Not approved, they read like instructions (look at them with /memory, then /reject): " + ", ".join(f"#{i}" for i in skipped) + ".")
+            fit, total = mem.prompt_fit()
+            if fit < total:
+                out.append(f"Only the newest {fit} of {total} approved notes fit in my prompt; the older ones are kept but not used. /forget the ones you no longer need.")
+            return "\n".join(out)
         if cmd in ("/approve", "/reject", "/forget"):
             if not arg.lstrip("#").isdigit():
-                return f"Usage: {cmd} <number>"
-            status = "approved" if cmd == "/approve" else "rejected"
-            return f"Note #{arg.lstrip('#')} {status}." if mem.set_status(int(arg.lstrip("#")), status) else "No such note."
+                return f"Usage: {cmd} <number>" + (" or /approve all" if cmd == "/approve" else "")
+            nid = int(arg.lstrip("#"))
+            if cmd == "/approve":
+                res = mem.approve(nid)
+                if res == "refused":
+                    return f"Note #{nid} reads like an instruction, not a fact about the lab, so I did not approve it. /reject {nid} to drop it."
+                return f"Note #{nid} approved." if res == "ok" else "No such note."
+            return f"Note #{nid} rejected." if mem.set_status(nid, "rejected") else "No such note."
         if cmd in ("/alerts", "/fixes", "/mute", "/unmute") and self.alerts is None:
             return "Alerts are off: they need the Telegram bridge (no telegram.env). Zabbix keeps alerting through its own media types."
         if cmd == "/alerts":
