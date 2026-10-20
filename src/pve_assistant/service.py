@@ -132,6 +132,8 @@ class Service:
                 return f"Usage: {cmd} <number>"
             status = "approved" if cmd == "/approve" else "rejected"
             return f"Note #{arg.lstrip('#')} {status}." if mem.set_status(int(arg.lstrip("#")), status) else "No such note."
+        if cmd in ("/alerts", "/fixes", "/mute", "/unmute") and self.alerts is None:
+            return "Alerts are off: they need the Telegram bridge (no telegram.env). Zabbix keeps alerting through its own media types."
         if cmd == "/alerts":
             st = self.alerts.store
             rows = st.open_sent()
@@ -298,7 +300,12 @@ async def serve():
             except Exception as e:  # noqa: BLE001
                 log(f"startup message failed: {type(e).__name__}")
     else:
-        log("no Telegram settings: bridge disabled")
+        # Offline mode: no Telegram, so no proactive alerts, but the safety jobs still run (undo timers must fire) and the review is kept on disk.
+        async def keep_local(text):
+            log(f"(local) {text[:160]}")
+        tasks.append(asyncio.create_task(svc.nightly_loop(keep_local)))
+        tasks.append(asyncio.create_task(svc.timer_loop(keep_local)))
+        log("no Telegram settings: bridge and alerts disabled; undo timers and the daily review still run (read the review with /digest)")
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, svc.stopping.set)

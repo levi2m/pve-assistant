@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install the MCP SDK (the service tests need it)
+        run: pip install mcp==2.3.0
       - name: Compile
         run: python -m compileall -q src mcp_servers scripts tests
       - name: Offline tests (no model, no lab)
