@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# local configuration and secrets never belong in the repository
+config.toml
+*.env
+!*.env.example
+zabbix-mcp.toml
+*.db
+*.jsonl
+local/

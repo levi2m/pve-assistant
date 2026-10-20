@@ -1,0 +1,87 @@
+# /etc/pve-assistant/config.toml  -  everything that differs from one lab to another.
+# Secrets do NOT go here: they live in env files next to this file (see the *.env.example files, mode 600, owned by the service user).
+# Every section is optional; a server table that is missing or has enabled = false is simply not connected.
+# The server NAMES below (pve, zabbix, docker, ollama, openwrt, n8n) are fixed: the gate and the recipes recognise tools by them.
+
+[general]
+state_dir = "/var/lib/pve-assistant"       # transcripts, audit database, memory, snapshots, digests
+timezone  = "Europe/Berlin"                # quiet hours, daily review and transcript days use this zone
+
+[model]
+name       = "qwen3.5:4b"                  # any Ollama model with tool calling; 4B is the tested floor
+ollama_url = "http://127.0.0.1:11434"
+
+[limits]                                   # defaults shown; tuned for a 4B model on CPU
+max_steps      = 4
+max_tools      = 8
+per_server_cap = 6
+result_chars   = 3500
+list_rows      = 15
+
+[lab]
+# One or two sentences the model should always know: names of nodes, which one is the main one, anything a question will refer to by nickname.
+description = "The Proxmox nodes are named pve1 (main) and pve2."
+
+[hints]
+# Extra words that route a question to a tool server (regex fragments, case-insensitive, joined with | to the built-in ones).
+# Use it for guest, host and container names: without it "is web01 running?" has no server hint.
+# Use \b word boundaries around short names, or "web" will also match "webhook" and "dock" will match "docker".
+# Use single-quoted TOML strings so the backslashes stay as written.
+pve    = '\bpve1\b|\bpve2\b|\bweb01\b|\bdb01\b'
+docker = '\bproxy\b|\bnextcloud\b'
+
+[review]
+hour = 23                                  # local hour of the daily review
+
+[alerts]
+enabled      = true
+poll_s       = 60
+persist_min  = 15                          # Average problems must stay open this long before they are reported
+quiet_start  = 23                          # quiet hours: only High and Disaster are sent
+quiet_end    = 7
+remind_h     = 4
+max_reminders = 3
+hourly_cap   = 8                           # more than this per hour are grouped into one message
+burst        = 3                           # this many new problems at once become one grouped message
+flap_count   = 3
+flap_window_h = 6
+
+[zabbix]
+# Hosts the assistant must never disable (monitoring of the monitor).
+protected_hosts = ["zabbix-server", "assistant"]
+
+[n8n]
+# n8n workflows whose name starts with one of these cannot be run or edited through the assistant.
+protected_workflow_prefixes = []
+
+# ---------------------------------------------------------------- tool servers
+[servers.pve]                              # https://github.com/Samik081/mcp-pve  (built by scripts/build_mcp_servers.sh)
+command  = "node"
+args     = ["/opt/pve-assistant/src/mcp-pve/dist/index.js"]
+env_file = "mcp-pve.env"                   # PVE_BASE_URL, PVE_TOKEN_ID, PVE_TOKEN_SECRET, PVE_ACCESS_TIER, PVE_VERIFY_SSL, NODE_EXTRA_CA_CERTS, MCP_TRANSPORT=stdio
+
+[servers.zabbix]                           # https://github.com/initMAX/zabbix-mcp-server
+command = "/opt/pve-assistant/zabbix-mcp-venv/bin/zabbix-mcp-server"
+args    = ["--config", "/etc/pve-assistant/zabbix-mcp.toml"]
+
+[servers.docker]                           # mcp_servers/docker_mcp.py
+command = "/opt/pve-assistant/venv/bin/python"
+args    = ["/opt/pve-assistant/servers/docker_mcp.py"]
+env     = { PYTHONPATH = "/opt/pve-assistant/servers", DOCKER_API = "http://127.0.0.1:2375" }
+
+[servers.ollama]                           # mcp_servers/ollama_mcp.py (also reports Open WebUI when OWUI_URL is set)
+command = "/opt/pve-assistant/venv/bin/python"
+args    = ["/opt/pve-assistant/servers/ollama_mcp.py"]
+env     = { PYTHONPATH = "/opt/pve-assistant/servers", OLLAMA_API = "http://127.0.0.1:11434", OWUI_URL = "http://127.0.0.1:8080" }
+
+[servers.openwrt]                          # mcp_servers/openwrt_mcp.py (read-only; create the login with scripts/openwrt_readonly_login.sh)
+command  = "/opt/pve-assistant/venv/bin/python"
+args     = ["/opt/pve-assistant/servers/openwrt_mcp.py"]
+env      = { PYTHONPATH = "/opt/pve-assistant/servers", OPENWRT_URL = "http://192.168.1.1/ubus" }
+env_file = "openwrt.env"                   # OPENWRT_USER, OPENWRT_PASS
+
+[servers.n8n]                              # n8n's built-in MCP server. Optional, and read the warning in docs/SAFETY.md before enabling it.
+enabled    = false
+url        = "http://127.0.0.1:5678/mcp-server/http"
+token_file = "n8n-mcp.env"
+token_key  = "N8N_MCP_TOKEN"

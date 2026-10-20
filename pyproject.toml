@@ -1,0 +1,18 @@
+[project]
+name = "pve-assistant"
+version = "0.1.0"
+description = "A small-model, MCP-based assistant for a Proxmox lab with Zabbix: answers questions, makes one reversible change per request, and sends alerts to Telegram"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["mcp==2.3.0"]   # brings httpx2, anyio, pydantic; everything else is the standard library
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]

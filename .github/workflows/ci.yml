@@ -1,0 +1,19 @@
+name: ci
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile
+        run: python -m compileall -q src mcp_servers scripts tests
+      - name: Offline tests (no model, no lab)
+        run: python tests/run_all.py
+      - name: Scan the tree for secrets and local details
+        run: python scripts/scan_repo.py

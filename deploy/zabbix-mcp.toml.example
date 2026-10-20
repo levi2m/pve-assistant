@@ -1,0 +1,15 @@
+# Config of the third-party zabbix-mcp-server (initMAX). Keep it mode 600: it holds the API token.
+[server]
+transport = "stdio"
+rate_limit = 300
+log_level = "info"
+
+[admin]
+enabled = false
+update_check_enabled = false
+
+[zabbix.lab]
+url = "https://zabbix.example.net/zabbix"
+api_token = "PASTE-THE-TOKEN-OF-THE-ASSISTANT-USER"
+read_only = false              # writes are limited by the Zabbix ROLE (scripts/zabbix_setup.py role), not by this flag
+verify_ssl = true
